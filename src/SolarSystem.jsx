@@ -1,205 +1,183 @@
-
+// src/components/SolarSystem.jsx
 import * as THREE from "three";
 import { useEffect, useRef } from "react";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
+import { Canvas } from "@react-three/fiber";
+import { Stars } from "@react-three/drei";
+import { useMotionTemplate, useMotionValue, animate, motion } from "framer-motion";
 
-const SolarSystem = () => {
+export default function SolarSystem() {
   const mountRef = useRef();
+  const REDS = [
+    "rgba(80, 20, 20, 0.05)",
+    "rgba(100, 30, 30, 0.07)",
+    "rgba(70, 15, 15, 0.04)",
+    "rgba(90, 25, 25, 0.06)",
+  ];
+  const nebulaColor = useMotionValue(REDS[0]);
+
+  useEffect(() => {
+    animate(nebulaColor, REDS, {
+      duration: 8,
+      repeat: Infinity,
+      repeatType: "mirror",
+      ease: "easeInOut",
+    });
+  }, []);
+
+  const backgroundImage = useMotionTemplate`
+    radial-gradient(200% 150% at 50% 50%, ${nebulaColor} 5%, #020617 70%)
+  `;
 
   useEffect(() => {
     const mount = mountRef.current;
-
-    // ─── Renderer ──────────────────────────────────────────
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type    = THREE.PCFSoftShadowMap;
-    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setSize(innerWidth, innerHeight);
     mount.appendChild(renderer.domElement);
 
-    // ─── Scene & Camera ────────────────────────────────────
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(
-      75,
-      window.innerWidth / window.innerHeight,
-      0.1,
-      1000
-    );
+    const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.1, 2000);
     camera.position.set(-50, 90, 150);
 
-    // ─── Controls ──────────────────────────────────────────
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
 
-    // ─── Subtle Ambient Fill ───────────────────────────────
     scene.add(new THREE.AmbientLight(0xffffff, 0.05));
 
-    // ─── Load Textures ─────────────────────────────────────
     const loader = new THREE.TextureLoader();
-    const starTex    = loader.load("/images/stars.jpg");
-    const sunTex     = loader.load("/images/sun.jpg");
-    const planetTexs = {
-      mercury:    loader.load("/images/mercury.jpg"),
-      venus:      loader.load("/images/venus.jpg"),
-      earth:      loader.load("/images/earth.jpg"),
-      mars:       loader.load("/images/mars.jpg"),
-      jupiter:    loader.load("/images/jupiter.jpg"),
-      saturn:     loader.load("/images/saturn.jpg"),
-      uranus:     loader.load("/images/uranus.jpg"),
-      neptune:    loader.load("/images/neptune.jpg"),
-      pluto:      loader.load("/images/pluto.jpg"),
-      saturnRing: loader.load("/images/saturn_ring.png"),
-      uranusRing: loader.load("/images/uranus_ring.png"),
+    const sunTex = loader.load("/images/sun.jpg");
+    const planetTex = {
+      mercury: loader.load("/images/mercury.jpg"),
+      venus: loader.load("/images/venus.jpg"),
+      earth: loader.load("/images/earth.jpg"),
+      mars: loader.load("/images/mars.jpg"),
+      jupiter: loader.load("/images/jupiter.jpg"),
+      saturn: loader.load("/images/saturn.jpg"),
+      uranus: loader.load("/images/uranus.jpg"),
+      neptune: loader.load("/images/neptune.jpg"),
+      pluto: loader.load("/images/pluto.jpg"),
     };
 
-    // ─── Background & Environment Map ──────────────────────
-    scene.background = starTex;
-    const envMap = new THREE.CubeTextureLoader().load([
-      "/images/stars.jpg","/images/stars.jpg","/images/stars.jpg",
-      "/images/stars.jpg","/images/stars.jpg","/images/stars.jpg"
-    ]);
-    scene.environment = envMap;
-
-    // ─── Sun (bigger!) + Halo + Light ────────────────────
-    const sunRadius = 20;
-    const sunGeo    = new THREE.SphereGeometry(sunRadius, 50, 50);
-    const sunMat    = new THREE.MeshStandardMaterial({
-      map: sunTex,
-      emissive: 0xffdd33,
-      emissiveIntensity: 6,   // ramped up
-    });
-    const sun = new THREE.Mesh(sunGeo, sunMat);
+    const sun = new THREE.Mesh(
+      new THREE.SphereGeometry(20, 50, 50),
+      new THREE.MeshStandardMaterial({
+        map: sunTex,
+        emissive: 0xffdd33,
+        emissiveIntensity: 6,
+      })
+    );
     sun.castShadow = true;
     scene.add(sun);
 
     const sunLight = new THREE.PointLight(0xffffff, 5, 1500);
     sunLight.castShadow = true;
-    sunLight.shadow.mapSize.set(2048, 2048);
     sunLight.position.copy(sun.position);
     scene.add(sunLight);
 
-    const glowGeo = new THREE.SphereGeometry(sunRadius * 1.5, 50, 50);
-    const glowMat = new THREE.MeshBasicMaterial({
-      color: 0xffaa00,
-      transparent: true,
-      opacity: 0.6,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
-    const glow = new THREE.Mesh(glowGeo, glowMat);
-    sun.add(glow);
+    const sunGlow = new THREE.Mesh(
+      new THREE.SphereGeometry(24, 50, 50),
+      new THREE.MeshBasicMaterial({
+        color: 0xffaa00,
+        transparent: true,
+        opacity: 0.6,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      })
+    );
+    sun.add(sunGlow);
 
-    // ─── Utility: Draw Orbit Ring ─────────────────────────
-    const makeOrbit = (r) => {
+    const asteroidCount = 1000;
+    const astPos = new Float32Array(asteroidCount * 3);
+    for (let i = 0; i < asteroidCount; i++) {
+      const θ = Math.random() * Math.PI * 2;
+      const r = THREE.MathUtils.lerp(85, 95, Math.random());
+      astPos.set([
+        Math.cos(θ) * r,
+        THREE.MathUtils.randFloatSpread(4),
+        Math.sin(θ) * r,
+      ], i * 3);
+    }
+    const asteroidBelt = new THREE.Points(
+      new THREE.BufferGeometry().setAttribute("position", new THREE.BufferAttribute(astPos, 3)),
+      new THREE.PointsMaterial({ size: 0.7, color: 0x888888 })
+    );
+    scene.add(asteroidBelt);
+
+    const bodies = [];
+    function makeOrbit(dist) {
       const pts = [];
       for (let i = 0; i <= 128; i++) {
         const θ = (i / 128) * Math.PI * 2;
-        pts.push(r * Math.cos(θ), 0, r * Math.sin(θ));
+        pts.push(dist * Math.cos(θ), 0, dist * Math.sin(θ));
       }
-      const geo = new THREE.BufferGeometry();
-      geo.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3));
-      const mat = new THREE.LineBasicMaterial({ color: 0x444444 });
-      scene.add(new THREE.LineLoop(geo, mat));
-    };
-
-    // ─── Utility: Planet + Emissive Glow ──────────────────
-    const makePlanet = (size, tex, dist, ringOpt) => {
+      const orbit = new THREE.LineLoop(
+        new THREE.BufferGeometry().setAttribute("position", new THREE.Float32BufferAttribute(pts, 3)),
+        new THREE.LineBasicMaterial({ color: 0x444444 })
+      );
+      scene.add(orbit);
+    }
+    function makePlanet(tex, size, dist, orbitSpeed, spinSpeed) {
       const mat = new THREE.MeshStandardMaterial({
         map: tex,
-        metalness: 0,
-        roughness: 1,
-        emissive: new THREE.Color(0xffffff),
+        emissive: 0xffffff,
         emissiveMap: tex,
-        emissiveIntensity: 0.3,  // boost as desired
+        emissiveIntensity: 0.3,
+        roughness: 1,
       });
-      const mesh = new THREE.Mesh(
-        new THREE.SphereGeometry(size, 64, 64),
-        mat
-      );
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-
+      const mesh = new THREE.Mesh(new THREE.SphereGeometry(size, 64, 64), mat);
+      mesh.castShadow = mesh.receiveShadow = true;
       const pivot = new THREE.Object3D();
       scene.add(pivot);
       mesh.position.set(dist, 0, 0);
       pivot.add(mesh);
-
-      if (ringOpt) {
-        const ring = new THREE.Mesh(
-          new THREE.RingGeometry(ringOpt.inner, ringOpt.outer, 64),
-          new THREE.MeshStandardMaterial({
-            map: ringOpt.tex,
-            side: THREE.DoubleSide,
-            transparent: true,
-            roughness: 1,
-            metalness: 0,
-          })
-        );
-        ring.rotation.x = -Math.PI / 2;
-        ring.position.set(dist, 0, 0);
-        ring.castShadow = true;
-        ring.receiveShadow = true;
-        pivot.add(ring);
-      }
-
       makeOrbit(dist);
-      return { pivot, mesh };
-    };
+      bodies.push({ mesh, pivot, orbitSpeed, spinSpeed });
+    }
 
-    // ─── Build All Planets ─────────────────────────────────
-    const planets = [
-      { ...makePlanet(4,   planetTexs.mercury,  28), orbit: 0.004, spin: 0.004 },
-      { ...makePlanet(6,   planetTexs.venus,    44), orbit: 0.015, spin: 0.002 },
-      { ...makePlanet(7,   planetTexs.earth,    62), orbit: 0.01,  spin: 0.02  },
-      { ...makePlanet(5,   planetTexs.mars,     78), orbit: 0.008, spin: 0.018 },
-      { ...makePlanet(14,  planetTexs.jupiter, 100), orbit: 0.002, spin: 0.04  },
-      {
-        ...makePlanet(11, planetTexs.saturn, 138, {
-          inner: 11, outer: 22, tex: planetTexs.saturnRing,
-        }),
-        orbit: 0.0009, spin: 0.038,
-      },
-      {
-        ...makePlanet(8, planetTexs.uranus, 176, {
-          inner: 8, outer: 14, tex: planetTexs.uranusRing,
-        }),
-        orbit: 0.0004, spin: 0.03,
-      },
-      { ...makePlanet(8, planetTexs.neptune, 200), orbit: 0.0001, spin: 0.032 },
-      { ...makePlanet(3, planetTexs.pluto,   216), orbit: 0.0007, spin: 0.008 },
-    ];
+    makePlanet(planetTex.mercury, 4, 28, 0.004, 0.004);
+    makePlanet(planetTex.venus,   6, 44, 0.015, 0.002);
+    makePlanet(planetTex.earth,   7, 62, 0.01,  0.02);
+    makePlanet(planetTex.mars,    5, 78, 0.008, 0.018);
+    makePlanet(planetTex.jupiter, 14,100, 0.002, 0.04);
+    makePlanet(planetTex.saturn,  11,138, 0.0009,0.038);
+    makePlanet(planetTex.uranus,  8,176, 0.0004,0.03);
+    makePlanet(planetTex.neptune, 8,200, 0.0001,0.032);
+    makePlanet(planetTex.pluto,   3,216, 0.0007,0.008);
 
-    // ─── Animation Loop ───────────────────────────────────
-    const animate = () => {
+    renderer.setAnimationLoop(() => {
       controls.update();
       sun.rotation.y += 0.003;
-      glow.material.opacity = 0.5 + Math.sin(Date.now() * 0.005) * 0.3;
-
-      planets.forEach(({ pivot, mesh, orbit, spin }) => {
-        pivot.rotation.y += orbit;
-        mesh.rotation.y  += spin;
+      sunGlow.material.opacity = 0.5 + Math.sin(Date.now() * 0.005) * 0.3;
+      asteroidBelt.rotation.y += 0.0002;
+      bodies.forEach(({ mesh, pivot, orbitSpeed, spinSpeed }) => {
+        pivot.rotation.y += orbitSpeed;
+        mesh.rotation.y += spinSpeed;
       });
-
       renderer.render(scene, camera);
-    };
-    renderer.setAnimationLoop(animate);
+    });
 
-    // ─── Handle Resize ─────────────────────────────────────
-    const onResize = () => {
-      camera.aspect = window.innerWidth / window.innerHeight;
+    window.addEventListener("resize", () => {
+      camera.aspect = innerWidth / innerHeight;
       camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    };
-    window.addEventListener("resize", onResize);
+      renderer.setSize(innerWidth, innerHeight);
+    });
 
-    // ─── Cleanup ────────────────────────────────────────────
-    return () => {
-      window.removeEventListener("resize", onResize);
-      mount.removeChild(renderer.domElement);
-    };
+    return () => mount.removeChild(renderer.domElement);
   }, []);
 
-  return <div ref={mountRef} className="w-full h-screen" />;
-};
-
-export default SolarSystem;
+  return (
+    <motion.div
+      style={{ backgroundImage }}
+      className="relative w-full h-screen overflow-hidden"
+    >
+      <div ref={mountRef} className="absolute inset-0 z-10" />
+      <div className="absolute inset-0 z-0">
+        <Canvas>
+          <Stars radius={80} count={3000} factor={4} fade speed={2} />
+        </Canvas>
+      </div>
+    </motion.div>
+  );
+}

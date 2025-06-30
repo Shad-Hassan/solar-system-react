@@ -5,7 +5,7 @@ import SolarSystem from './SolarSystem.jsx'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-     <div className="bg-black">
+     <div className="bg-[#101720]">
       <SolarSystem />
     </div>
   </StrictMode>,
