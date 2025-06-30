@@ -1,10 +1,12 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
-import SolarSystemApp from './SolarSystemApp.jsx'
+import SolarSystem from './SolarSystem.jsx'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <SolarSystemApp />
+     <div className="bg-black">
+      <SolarSystem />
+    </div>
   </StrictMode>,
 )
