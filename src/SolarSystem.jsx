@@ -8,6 +8,7 @@ import { useMotionTemplate, useMotionValue, animate, motion } from "framer-motio
 
 export default function SolarSystem() {
   const mountRef = useRef();
+
   const REDS = [
     "rgba(80, 20, 20, 0.05)",
     "rgba(100, 30, 30, 0.07)",
@@ -34,11 +35,12 @@ export default function SolarSystem() {
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.shadowMap.enabled = true;
-    renderer.setSize(innerWidth, innerHeight);
+    renderer.setSize(window.innerWidth, window.innerHeight);
     mount.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.1, 2000);
+
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
     camera.position.set(-50, 90, 150);
 
     const controls = new OrbitControls(camera, renderer.domElement);
@@ -47,7 +49,8 @@ export default function SolarSystem() {
     scene.add(new THREE.AmbientLight(0xffffff, 0.05));
 
     const loader = new THREE.TextureLoader();
-    const sunTex = loader.load("/images/sun.jpg");
+
+    const sunTex = loader.load("/images/Argus.png");
     const planetTex = {
       mercury: loader.load("/images/mercury.jpg"),
       venus: loader.load("/images/venus.jpg"),
@@ -64,8 +67,11 @@ export default function SolarSystem() {
       new THREE.SphereGeometry(20, 50, 50),
       new THREE.MeshStandardMaterial({
         map: sunTex,
-        emissive: 0xffdd33,
-        emissiveIntensity: 6,
+        emissive: new THREE.Color("#00ff00"), // photon green bright
+        emissiveMap: sunTex,
+        emissiveIntensity: 4,
+        roughness: 0.3,
+        metalness: 0.6,
       })
     );
     sun.castShadow = true;
@@ -76,18 +82,7 @@ export default function SolarSystem() {
     sunLight.position.copy(sun.position);
     scene.add(sunLight);
 
-    const sunGlow = new THREE.Mesh(
-      new THREE.SphereGeometry(24, 50, 50),
-      new THREE.MeshBasicMaterial({
-        color: 0xffaa00,
-        transparent: true,
-        opacity: 0.6,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-      })
-    );
-    sun.add(sunGlow);
-
+    // Asteroid Belt
     const asteroidCount = 1000;
     const astPos = new Float32Array(asteroidCount * 3);
     for (let i = 0; i < asteroidCount; i++) {
@@ -105,7 +100,9 @@ export default function SolarSystem() {
     );
     scene.add(asteroidBelt);
 
+    // Planets
     const bodies = [];
+
     function makeOrbit(dist) {
       const pts = [];
       for (let i = 0; i <= 128; i++) {
@@ -118,16 +115,18 @@ export default function SolarSystem() {
       );
       scene.add(orbit);
     }
+
     function makePlanet(tex, size, dist, orbitSpeed, spinSpeed) {
       const mat = new THREE.MeshStandardMaterial({
         map: tex,
-        emissive: 0xffffff,
+        emissive: new THREE.Color(0xffffff),
         emissiveMap: tex,
         emissiveIntensity: 0.3,
         roughness: 1,
       });
       const mesh = new THREE.Mesh(new THREE.SphereGeometry(size, 64, 64), mat);
-      mesh.castShadow = mesh.receiveShadow = true;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
       const pivot = new THREE.Object3D();
       scene.add(pivot);
       mesh.position.set(dist, 0, 0);
@@ -137,19 +136,18 @@ export default function SolarSystem() {
     }
 
     makePlanet(planetTex.mercury, 4, 28, 0.004, 0.004);
-    makePlanet(planetTex.venus,   6, 44, 0.015, 0.002);
-    makePlanet(planetTex.earth,   7, 62, 0.01,  0.02);
-    makePlanet(planetTex.mars,    5, 78, 0.008, 0.018);
-    makePlanet(planetTex.jupiter, 14,100, 0.002, 0.04);
-    makePlanet(planetTex.saturn,  11,138, 0.0009,0.038);
-    makePlanet(planetTex.uranus,  8,176, 0.0004,0.03);
-    makePlanet(planetTex.neptune, 8,200, 0.0001,0.032);
-    makePlanet(planetTex.pluto,   3,216, 0.0007,0.008);
+    makePlanet(planetTex.venus, 6, 44, 0.015, 0.002);
+    makePlanet(planetTex.earth, 7, 62, 0.01, 0.02);
+    makePlanet(planetTex.mars, 5, 78, 0.008, 0.018);
+    makePlanet(planetTex.jupiter, 14, 100, 0.002, 0.04);
+    makePlanet(planetTex.saturn, 11, 138, 0.0009, 0.038);
+    makePlanet(planetTex.uranus, 8, 176, 0.0004, 0.03);
+    makePlanet(planetTex.neptune, 8, 200, 0.0001, 0.032);
+    makePlanet(planetTex.pluto, 3, 216, 0.0007, 0.008);
 
     renderer.setAnimationLoop(() => {
       controls.update();
       sun.rotation.y += 0.003;
-      sunGlow.material.opacity = 0.5 + Math.sin(Date.now() * 0.005) * 0.3;
       asteroidBelt.rotation.y += 0.0002;
       bodies.forEach(({ mesh, pivot, orbitSpeed, spinSpeed }) => {
         pivot.rotation.y += orbitSpeed;
@@ -158,13 +156,17 @@ export default function SolarSystem() {
       renderer.render(scene, camera);
     });
 
-    window.addEventListener("resize", () => {
-      camera.aspect = innerWidth / innerHeight;
+    const onResize = () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
-      renderer.setSize(innerWidth, innerHeight);
-    });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    };
+    window.addEventListener("resize", onResize);
 
-    return () => mount.removeChild(renderer.domElement);
+    return () => {
+      mount.removeChild(renderer.domElement);
+      window.removeEventListener("resize", onResize);
+    };
   }, []);
 
   return (
@@ -173,7 +175,7 @@ export default function SolarSystem() {
       className="relative w-full h-screen overflow-hidden"
     >
       <div ref={mountRef} className="absolute inset-0 z-10" />
-      <div className="absolute inset-0 z-0">
+      <div className="absolute inset-0 z-0 pointer-events-none">
         <Canvas>
           <Stars radius={80} count={3000} factor={4} fade speed={2} />
         </Canvas>
